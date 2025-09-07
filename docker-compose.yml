@@ -1,0 +1,103 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: acacia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-acacia_store}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - acacia-network
+
+  # Acacia Extension Store API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-production}
+    container_name: acacia-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Server Configuration
+      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: 0.0.0.0
+
+      # Database Configuration (using docker service name)
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-acacia_store}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-acacia_store}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+
+      # Other app settings
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      REGISTRY_NAME: ${REGISTRY_NAME:-Acacia Extension Store}
+      REGISTRY_DESCRIPTION: ${REGISTRY_DESCRIPTION:-A marketplace for serverless function and React component extensions}
+      REGISTRY_VERSION: ${REGISTRY_VERSION:-1.0.0}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./extensions:/app/extensions
+      - ./logs:/app/logs
+    networks:
+      - acacia-network
+    command: >
+      sh -c "
+        echo 'Waiting for database migration...' &&
+        bun run db:migrate &&
+        echo 'Starting server...' &&
+        bun run start
+      "
+
+  # Optional PgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: acacia-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@acacia.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - acacia-network
+    depends_on:
+      - postgres
+    profiles:
+      - admin-tools
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  acacia-network:
+    driver: bridge
