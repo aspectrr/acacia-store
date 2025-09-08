@@ -2,12 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
-import { HTTPException } from "hono/http-exception";
-import { config } from "dotenv";
 import { serve } from "@hono/node-server";
-
-// Load environment variables
-config();
 
 // Import database connection and utilities
 import {
@@ -208,11 +203,9 @@ app.get("/api/docs", (c) => {
 const apiPrefix = `/api/${process.env.API_VERSION || "v1"}`;
 
 // Mount route handlers
-app.route(`${apiPrefix}/auth`, authRoutes);
 app.route(`${apiPrefix}/extensions`, extensionRoutes);
 app.route(`${apiPrefix}/users`, userRoutes);
 app.route(`${apiPrefix}/installations`, installationRoutes);
-app.route(`${apiPrefix}/reviews`, reviewRoutes);
 app.route(`${apiPrefix}/uploads`, uploadRoutes);
 app.route(`${apiPrefix}/admin`, adminRoutes);
 

@@ -49,10 +49,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => ({
-    emailIdx: index("users_email_idx").on(table.email),
-    usernameIdx: index("users_username_idx").on(table.username),
-  }),
+  (table) => [
+    index("users_email_idx").on(table.email),
+    index("users_username_idx").on(table.username),
+  ],
 );
 
 // Extensions table
@@ -82,18 +82,16 @@ export const extensions = pgTable(
     isPublic: boolean("is_public").default(false),
     isFeatured: boolean("is_featured").default(false),
     downloadCount: integer("download_count").default(0),
-    rating: integer("rating").default(0), // Average rating * 100 (for precision)
-    ratingCount: integer("rating_count").default(0),
     lastPublishedAt: timestamp("last_published_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => ({
-    slugIdx: uniqueIndex("extensions_slug_idx").on(table.slug),
-    authorIdx: index("extensions_author_idx").on(table.authorId),
-    categoryIdx: index("extensions_category_idx").on(table.category),
-    statusIdx: index("extensions_status_idx").on(table.status),
-  }),
+  (table) => [
+    uniqueIndex("extensions_slug_idx").on(table.slug),
+    index("extensions_author_idx").on(table.authorId),
+    index("extensions_category_idx").on(table.category),
+    index("extensions_status_idx").on(table.status),
+  ],
 );
 
 // Extension versions table
@@ -166,15 +164,14 @@ export const extensionVersions = pgTable(
     publishedAt: timestamp("published_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => ({
-    extensionVersionIdx: uniqueIndex(
-      "extension_versions_extension_version_idx",
-    ).on(table.extensionId, table.version),
-    extensionIdx: index("extension_versions_extension_idx").on(
+  (table) => [
+    uniqueIndex("extension_versions_extension_version_idx").on(
       table.extensionId,
+      table.version,
     ),
-    versionIdx: index("extension_versions_version_idx").on(table.version),
-  }),
+    index("extension_versions_extension_idx").on(table.extensionId),
+    index("extension_versions_version_idx").on(table.version),
+  ],
 );
 
 // Extension installations table
@@ -211,15 +208,15 @@ export const extensionInstallations = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => ({
-    userExtensionIdx: uniqueIndex("installations_user_extension_idx").on(
+  (table) => [
+    uniqueIndex("installations_user_extension_idx").on(
       table.userId,
       table.extensionId,
     ),
-    userIdx: index("installations_user_idx").on(table.userId),
-    extensionIdx: index("installations_extension_idx").on(table.extensionId),
-    statusIdx: index("installations_status_idx").on(table.status),
-  }),
+    index("installations_user_idx").on(table.userId),
+    index("installations_extension_idx").on(table.extensionId),
+    index("installations_status_idx").on(table.status),
+  ],
 );
 
 // Extension categories table
@@ -247,8 +244,6 @@ export const extensionCategories = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   extensions: many(extensions),
   installations: many(extensionInstallations),
-  reviews: many(extensionReviews),
-  apiKeys: many(apiKeys),
 }));
 
 export const extensionsRelations = relations(extensions, ({ one, many }) => ({
@@ -258,7 +253,6 @@ export const extensionsRelations = relations(extensions, ({ one, many }) => ({
   }),
   versions: many(extensionVersions),
   installations: many(extensionInstallations),
-  reviews: many(extensionReviews),
 }));
 
 export const extensionVersionsRelations = relations(

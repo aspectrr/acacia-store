@@ -1,4 +1,3 @@
-import { config } from "dotenv";
 import bcrypt from "bcryptjs";
 import { db, testConnection, closeConnection } from "../db/connection.js";
 import {
@@ -6,14 +5,10 @@ import {
   extensions,
   extensionVersions,
   extensionInstallations,
-  extensionReviews,
   extensionCategories,
-  apiKeys,
 } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-
-// Load environment variables
-config();
+import assert from "assert/strict";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -240,45 +235,6 @@ const sampleVersions = [
   },
 ];
 
-// Sample reviews
-const sampleReviews = [
-  {
-    rating: 5,
-    title: "Excellent task management!",
-    review:
-      "This extension has completely transformed how I manage my daily tasks. The AI prioritization is spot-on and has helped me be much more productive.",
-    isVerified: true,
-  },
-  {
-    rating: 4,
-    title: "Great analytics tool",
-    review:
-      "Really powerful analytics dashboard. The visualizations are beautiful and the real-time updates work perfectly. Could use a few more chart types.",
-    isVerified: true,
-  },
-  {
-    rating: 5,
-    title: "Perfect for customer support",
-    review:
-      "Easy to integrate and our customers love it. The file sharing feature is particularly useful.",
-    isVerified: true,
-  },
-  {
-    rating: 4,
-    title: "Solid payment solution",
-    review:
-      "Works well with multiple payment providers. Setup was straightforward and it handles our transaction volume without issues.",
-    isVerified: false,
-  },
-  {
-    rating: 3,
-    title: "Good but has room for improvement",
-    review:
-      "The basic functionality works well, but I'd like to see more customization options and better documentation.",
-    isVerified: false,
-  },
-];
-
 async function hashPassword(password: string): Promise<string> {
   return await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 }
@@ -413,51 +369,54 @@ async function seedExtensions() {
 
   for (let i = 0; i < sampleExtensions.length; i++) {
     const extensionData = sampleExtensions[i];
+    assert(extensionData, "Extension data is missing");
     const author = allUsers[i % allUsers.length]; // Cycle through authors
+
+    assert(author, `Author not found`);
 
     try {
       // Check if extension already exists
       const existingExtension = await db
         .select({ id: extensions.id })
         .from(extensions)
-        .where(eq(extensions.name, extensionData?.name))
+        .where(eq(extensions.name, extensionData.name))
         .limit(1);
 
       if (existingExtension.length > 0) {
         console.log(
-          `   ⏭️  Extension ${extensionData?.name} already exists, skipping...`,
+          `   ⏭️  Extension ${extensionData.name} already exists, skipping...`,
         );
         continue;
       }
 
-      const slug = extensionData?.name
+      const slug = extensionData.name
         ?.toLowerCase()
         ?.replace(/[^a-z0-9-_]/g, "-");
+
+      assert(slug, `Slug not found`);
 
       const newExtensions = await db
         .insert(extensions)
         .values({
-          name: extensionData?.name,
+          name: extensionData.name,
           slug,
-          displayName: extensionData?.displayName,
-          description: extensionData?.description,
-          longDescription: extensionData?.longDescription,
-          authorId: author?.id,
-          category: extensionData?.category,
-          tags: extensionData?.tags,
-          homepage: extensionData?.homepage,
-          repository: extensionData?.repository,
-          documentation: extensionData?.documentation,
-          license: extensionData?.license,
-          keywords: extensionData?.keywords,
-          status: extensionData?.status,
-          isPublic: extensionData?.isPublic,
-          isFeatured: extensionData?.isFeatured,
+          displayName: extensionData.displayName,
+          description: extensionData.description,
+          longDescription: extensionData.longDescription,
+          authorId: author.id,
+          category: extensionData.category,
+          tags: extensionData.tags,
+          homepage: extensionData.homepage,
+          repository: extensionData.repository,
+          documentation: extensionData.documentation,
+          license: extensionData.license,
+          keywords: extensionData.keywords,
+          status: extensionData.status,
+          isPublic: extensionData.isPublic,
+          isFeatured: extensionData.isFeatured,
           downloadCount: Math.floor(Math.random() * 1000) + 50, // Random download count
-          rating: Math.floor(Math.random() * 200) + 300, // Random rating (3.0-5.0 * 100)
-          ratingCount: Math.floor(Math.random() * 50) + 10,
           lastPublishedAt:
-            extensionData?.status === "published" ? new Date() : null,
+            extensionData.status === "published" ? new Date() : null,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -495,6 +454,9 @@ async function seedExtensionVersions(createdExtensions: any[]) {
   ) {
     const extension = createdExtensions[i];
     const versionData = sampleVersions[i];
+
+    assert(extension, `Extension not found`);
+    assert(versionData, `Version data not found`);
 
     try {
       const newVersions = await db
@@ -565,11 +527,11 @@ async function seedExtensionVersions(createdExtensions: any[]) {
   return createdVersions;
 }
 
-async function seedInstallationsAndReviews(
+async function seedInstallations(
   createdExtensions: any[],
   createdVersions: any[],
 ) {
-  console.log("📦 Seeding installations and reviews...");
+  console.log("📦 Seeding installations...");
 
   // Get regular users
   const regularUsers = await db
@@ -578,20 +540,20 @@ async function seedInstallationsAndReviews(
     .where(eq(users.role, "user"));
 
   if (regularUsers.length === 0) {
-    console.warn(
-      "   ⚠️  No regular users found, skipping installations and reviews...",
-    );
+    console.warn("   ⚠️  No regular users found, skipping installations...");
     return;
   }
 
   let installationCount = 0;
-  let reviewCount = 0;
 
   // Create some installations and reviews
   for (let i = 0; i < Math.min(createdExtensions.length, 10); i++) {
     const extension = createdExtensions[i];
     const version = createdVersions.find((v) => v.extensionId === extension.id);
     const user = regularUsers[i % regularUsers.length];
+
+    assert(extension, `Extension not found`);
+    assert(user, `User not found`);
 
     if (!version) continue;
 
@@ -613,91 +575,12 @@ async function seedInstallationsAndReviews(
       console.log(
         `   ✅ Created installation: ${extension.name} for ${user?.username}`,
       );
-
-      // Create review (50% chance)
-      if (Math.random() > 0.5 && reviewCount < sampleReviews.length) {
-        const reviewData = sampleReviews[reviewCount % sampleReviews.length];
-
-        await db.insert(extensionReviews).values({
-          extensionId: extension.id,
-          versionId: version.id,
-          userId: user?.id,
-          rating: reviewData?.rating,
-          title: reviewData?.title,
-          review: reviewData?.review,
-          isVerified: reviewData?.isVerified,
-          helpfulCount: Math.floor(Math.random() * 20),
-          reportedCount: 0,
-          isHidden: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-
-        reviewCount++;
-        console.log(
-          `   ✅ Created review: ${reviewData?.rating}⭐ for ${extension.name}`,
-        );
-      }
     } catch (error) {
       console.error(`   ❌ Failed to create installation/review:`, error);
     }
   }
 
-  console.log(
-    `   📊 Created ${installationCount} installations and ${reviewCount} reviews`,
-  );
-}
-
-async function seedApiKeys() {
-  console.log("🔑 Seeding API keys...");
-
-  // Get developer users
-  const developers = await db
-    .select({ id: users.id, username: users.username })
-    .from(users)
-    .where(eq(users.role, "developer"))
-    .limit(2);
-
-  if (developers.length === 0) {
-    console.warn("   ⚠️  No developers found, skipping API keys...");
-    return;
-  }
-
-  let apiKeyCount = 0;
-
-  for (const developer of developers) {
-    try {
-      const apiKey = `ak_dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const keyHash = await bcrypt.hash(apiKey, BCRYPT_SALT_ROUNDS);
-      const keyPreview = `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`;
-
-      await db.insert(apiKeys).values({
-        userId: developer.id,
-        name: `Development API Key`,
-        keyHash,
-        keyPreview,
-        permissions: [
-          "extensions:read",
-          "extensions:write",
-          "versions:publish",
-        ],
-        isActive: true,
-        createdAt: new Date(),
-      });
-
-      apiKeyCount++;
-      console.log(
-        `   ✅ Created API key for ${developer.username}: ${keyPreview}`,
-      );
-    } catch (error) {
-      console.error(
-        `   ❌ Failed to create API key for ${developer.username}:`,
-        error,
-      );
-    }
-  }
-
-  console.log(`   📊 Created ${apiKeyCount} API keys`);
+  console.log(`   📊 Created ${installationCount} installations`);
 }
 
 async function runSeed() {
@@ -718,8 +601,7 @@ async function runSeed() {
     await seedCategories();
     const createdExtensions = await seedExtensions();
     const createdVersions = await seedExtensionVersions(createdExtensions);
-    await seedInstallationsAndReviews(createdExtensions, createdVersions);
-    await seedApiKeys();
+    await seedInstallations(createdExtensions, createdVersions);
 
     console.log("\n🎉 Database seeding completed successfully!");
     console.log("\n📋 Sample accounts created:");
@@ -762,8 +644,7 @@ This script creates sample data including:
   • Users (admin, developers, regular users)
   • Extension categories
   • Extensions with versions
-  • Installations and reviews
-  • API keys
+  • Installations
 
 Note: This script is idempotent - it won't create duplicates if run multiple times.
 `);
